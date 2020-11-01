@@ -64,7 +64,7 @@ extensions = [
     'sphinx.ext.mathjax',
     'sphinx.ext.napoleon',
     'sphinx.ext.todo',
-    'sphinxcontrib_verilog_diagrams',
+    'sphinxcontrib_hdl_diagrams',
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -83,10 +83,10 @@ master_doc = 'index'
 on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
 if not on_rtd:
     html_context = {
-        "display_github": True,  # Integrate GitHub
-        "github_user": "mithro",  # Username
-        "github_repo": "python-sphinx-verilog",  # Repo name
-        "github_version": "master",  # Version
+        "display_github": True,         # Integrate GitHub
+        "github_user": "google",        # Username
+        "github_repo": "skywater-pdk",  # Repo name
+        "github_version": "master",     # Version
         "conf_py_path": "/doc/",
     }
 else:
@@ -123,6 +123,7 @@ exclude_patterns = [
     # Files included in other rst files.
     'code-of-conduct.rst',
     'rules/periphery-rules.rst',
+    'rules/device-details/*/index.rst',
 ]
 
 # The name of the Pygments (syntax highlighting) style to use.
@@ -308,6 +309,8 @@ epub_title = project
 # A list of files that should not be packed into the epub file.
 epub_exclude_files = ['search.html']
 
+# Enable the figures and numbers
+numfig = True
 
 # -- Extension configuration -------------------------------------------------
 
@@ -320,8 +323,8 @@ todo_include_todos = True
 import re
 from docutils.parsers.rst import directives, roles, nodes
 
-
 LIB_REGEX = re.compile('sky130_(?P<lib_src>[^_\s]*)_(?P<lib_type>[^_\s]*)(_(?P<lib_name>[^_\s]*))?')
+CELL_REGEX = re.compile('sky130_(?P<lib_src>[^_\s]*)_(?P<lib_type>[^_\s]*)(_(?P<lib_name>[^_\s]*))?__(?P<cell_name>[^\s]*)')
 
 def lib_role(name, rawtext, text, lineno, inliner, options={}, content=[]):
     """Library name which gets colorized."""
@@ -355,6 +358,41 @@ def lib_role(name, rawtext, text, lineno, inliner, options={}, content=[]):
     return r, []
 
 
+def cell_role(name, rawtext, text, lineno, inliner, options={}, content=[]):
+    """Cell name which gets colorized."""
+    m = CELL_REGEX.match(text)
+    if not m:
+        msg = inliner.reporter.error("Malformed cell name of "+repr(text), line=lineno)
+        prb = inliner.problematic(rawtext, rawtext, msg)
+        return [prb], [msg]
+    app = inliner.document.settings.env.app
+
+    #lib_process_role = roles.role('lib_src', inliner.language, lineno, inliner.reporter)
+    #lib_src_role = roles.role('lib_src', inliner.language, lineno, inliner.reporter)
+    #lib_type_role = roles.role('lib_src', inliner.language, lineno, inliner.reporter)
+    #lib_name_role = roles.role('lib_src', inliner.language, lineno, inliner.reporter)
+    lib_process = 'sky130'
+    lib_src = m.group('lib_src')
+    lib_type = m.group('lib_type')
+    lib_name = m.group('lib_name')
+    cell_name = m.group('cell_name')
+
+    r = [
+        nodes.inline(lib_process, lib_process, classes=['lib-process']),
+        nodes.inline('_', '_', options=options),
+        nodes.inline(lib_src, lib_src, classes=['lib-src']),
+        nodes.inline('_', '_', options=options),
+        nodes.inline(lib_type, lib_type, classes=['lib-type']),
+    ]
+    if lib_name:
+        r.append(nodes.inline('_', '_', options=options))
+        r.append(nodes.inline(lib_name, lib_name, classes=['lib-name']))
+    r.append(nodes.inline('__', '__', options=options))
+    r.append(nodes.inline(cell_name, cell_name, classes=['cell-name']))
+
+    return r, []
+
+
 def add_role(app, new_role_name):
     options = {
         'class': directives.class_option(new_role_name),
@@ -374,4 +412,7 @@ def setup(app):
     add_role(app, 'drc_tag')
     add_role(app, 'drc_flag')
     add_role(app, 'layer')
+
     app.add_role('lib', lib_role)
+    app.add_role('cell', cell_role)
+    app.add_role('model', cell_role)
